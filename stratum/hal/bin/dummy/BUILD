@@ -21,8 +21,16 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-load("//bazel:rules.bzl", "stratum_cc_binary", "HOST_ARCHES")
-load("@grpc_py_deps//:requirements.bzl", grpc_all_requirements = "all_requirements", grpc_requirement = "requirement")
+load(
+  "//bazel:rules.bzl",
+  "stratum_cc_binary",
+  "HOST_ARCHES"
+)
+
+load(
+  "@grpc_py_deps//:requirements.bzl",
+  grpc_all_requirements = "all_requirements"
+)
 
 # TODO(Yi) Move to CC
 py_binary(
