@@ -94,7 +94,7 @@ stratum_cc_test(
 stratum_cc_binary(
     name = "procmon_main",
     srcs = ["procmon_main.cc"],
-    copts = [
+    linkopts = [
         "-lpthread",
         "-ldl",
         "-lrt",
