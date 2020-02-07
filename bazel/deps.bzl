@@ -32,6 +32,13 @@ GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108"
 GNOI_COMMIT = "437c62e630389aa4547b4f0521d0bca3fb2bf811"
 GNOI_SHA = "77d8c271adc22f94a18a5261c28f209370e87a5e615801a4e7e0d09f06da531f"
 
+BF_SDE_PI_VER = {
+    "8_9_2": "aa1f4f338008e48877f7dc407244a4d018a8fb7b",
+    "9_0_0": "ca0291420b5b47fa2596a00877d1713aab61dc7a",
+    "9_1_0": "41358da0ff32c94fa13179b9cee0ab597c9ccbcc",
+}
+
+
 def stratum_deps():
 # -----------------------------------------------------------------------------
 #        Protobuf + gRPC compiler and external models
@@ -97,13 +104,16 @@ def stratum_deps():
             commit = "1539ecd8a50c159b011d9c5a9c0eba99f122a845",
         )
 
-    if "com_github_p4lang_PI_bf" not in native.existing_rules():
-        # ----- PI for Barefoot targets -----
-        remote_workspace(
-            name = "com_github_p4lang_PI_bf",
-            remote = "https://github.com/p4lang/PI.git",
-            commit = "aa1f4f338008e48877f7dc407244a4d018a8fb7b",
-        )
+    for sde_ver in BF_SDE_PI_VER:
+        dep_name = "com_github_p4lang_PI_bf_" + sde_ver
+        pi_commit = BF_SDE_PI_VER[sde_ver]
+        if dep_name not in native.existing_rules():
+                # ----- PI for Barefoot targets -----
+                remote_workspace(
+                    name = dep_name,
+                    remote = "https://github.com/p4lang/PI.git",
+                    commit = pi_commit,
+                )
 
     if "com_github_openconfig_gnmi_proto" not in native.existing_rules():
         http_archive(
