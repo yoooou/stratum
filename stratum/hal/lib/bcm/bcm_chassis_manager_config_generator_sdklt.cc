@@ -41,9 +41,9 @@ DECLARE_string(bcm_sdk_config_file);
 namespace stratum {
 namespace hal {
 namespace bcm {
+namespace {
 
 constexpr int kMaxSerdesLaneNumber = 15;
-
 // Data structure to hold lane settings for BCM port macro
 struct SerdesLaneSetting {
   uint32 speed_mbps[16];
@@ -87,42 +87,37 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
     default: return "PC_PORT_OPMODE_ANY";
   }
 }
+}  // namespace
 
 ::util::Status BcmChassisManager::WriteBcmConfigFile(
     const BcmChassisMap& base_bcm_chassis_map,
     const BcmChassisMap& target_bcm_chassis_map) const {
   std::stringstream buffer;
 
-  absl::flat_hash_map<int, SerdesLaneSetting*> serdes_lane_settings;
+  absl::flat_hash_map<int, SerdesLaneSetting> serdes_lane_settings;
   for (const auto& bcm_port : target_bcm_chassis_map.bcm_ports()) {
     int serdes_core_id = bcm_port.serdes_core();
-
+    SerdesLaneSetting serdes_lane_setting;
     if (!serdes_lane_settings.count(serdes_core_id)) {
-      serdes_lane_settings.emplace(serdes_core_id, new SerdesLaneSetting());
+      serdes_lane_settings.emplace(serdes_core_id, serdes_lane_setting);
     }
 
-    SerdesLaneSetting* serdes_lane_setting =
-        serdes_lane_settings[serdes_core_id];
+    serdes_lane_setting = serdes_lane_settings[serdes_core_id];
 
-    if (!serdes_lane_setting) {
-      // This should not happened
-      RETURN_ERROR() << "Serdes core id " << serdes_core_id << " not found.";
-    }
-
-    serdes_lane_setting->rx_lane_map = bcm_port.rx_lane_map();
-    serdes_lane_setting->tx_lane_map = bcm_port.tx_lane_map();
-    serdes_lane_setting->rx_polarity_flip = bcm_port.rx_polarity_flip();
-    serdes_lane_setting->tx_polarity_flip = bcm_port.tx_polarity_flip();
+    serdes_lane_setting.rx_lane_map = bcm_port.rx_lane_map();
+    serdes_lane_setting.tx_lane_map = bcm_port.tx_lane_map();
+    serdes_lane_setting.rx_polarity_flip = bcm_port.rx_polarity_flip();
+    serdes_lane_setting.tx_polarity_flip = bcm_port.tx_polarity_flip();
 
     int serdes_lane = bcm_port.serdes_lane();
     CHECK_RETURN_IF_FALSE(serdes_lane >= 0 &&
                           serdes_lane < kMaxSerdesLaneNumber)
         << "Invalid serdes lane number";
 
-    serdes_lane_setting->speed_mbps[serdes_lane] =
+    serdes_lane_setting.speed_mbps[serdes_lane] =
         bcm_port.speed_bps() / kBitsPerMegabit;
-    serdes_lane_setting->lane_map[serdes_lane] = bcm_port.lane_map();
-    serdes_lane_setting->op_mode[serdes_lane] = bcm_port.op_mode();
+    serdes_lane_setting.lane_map[serdes_lane] = bcm_port.lane_map();
+    serdes_lane_setting.op_mode[serdes_lane] = bcm_port.op_mode();
   }
 
   // TODO(Yi): We use default node Id 0, need to support multiple nodes.
@@ -139,7 +134,7 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
 
   for (const auto& bcm_port : target_bcm_chassis_map.bcm_ports()) {
     int pc_pm_id = bcm_port.serdes_core();
-    SerdesLaneSetting* serdes_lane_setting = serdes_lane_settings[pc_pm_id];
+    SerdesLaneSetting serdes_lane_setting = serdes_lane_settings[pc_pm_id];
 
     // Key is a map (PC_PM_ID: xx)
     pc_pm << YAML::Key << YAML::BeginMap << YAML::Key << "PC_PM_ID"
@@ -151,7 +146,7 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
 
     for (int i = 0; i < bcm_port.num_serdes_lanes(); i++) {
       ASSIGN_OR_RETURN(auto op_mode_str,
-                       ToBcmSdkltOpModeStr(serdes_lane_setting->op_mode[i]))
+                       ToBcmSdkltOpModeStr(serdes_lane_setting.op_mode[i]))
       pc_pm << op_mode_str;
     }
     pc_pm << YAML::EndSeq;
@@ -159,14 +154,14 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
     pc_pm << YAML::Key << "SPEED_MAX";
     pc_pm << YAML::Value << YAML::Flow << YAML::BeginSeq;
     for (int i = 0; i < bcm_port.num_serdes_lanes(); i++) {
-      pc_pm << serdes_lane_setting->speed_mbps[i];
+      pc_pm << serdes_lane_setting.speed_mbps[i];
     }
     pc_pm << YAML::EndSeq;
 
     pc_pm << YAML::Key << "LANE_MAP";
     pc_pm << YAML::Value << YAML::Flow << YAML::BeginSeq;
     for (int i = 0; i < bcm_port.num_serdes_lanes(); i++) {
-      pc_pm << serdes_lane_setting->lane_map[i];
+      pc_pm << serdes_lane_setting.lane_map[i];
     }
     pc_pm << YAML::EndSeq;
     pc_pm << YAML::EndMap;  // PC_PM_ID
@@ -190,26 +185,26 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
 
   for (const auto& bcm_port : target_bcm_chassis_map.bcm_ports()) {
     int pc_pm_id = bcm_port.serdes_core();
-    SerdesLaneSetting* serdes_lane_setting = serdes_lane_settings[pc_pm_id];
+    SerdesLaneSetting serdes_lane_setting = serdes_lane_settings[pc_pm_id];
 
     // Key is a map (PC_PM_ID: xx, CORE_INDEX: unit)
-    pc_pm_core << YAML::Key << YAML::BeginMap << YAML::Key << "PC_PM_ID"
-               << YAML::Value << pc_pm_id << YAML::Key << "CORE_INDEX"
-               << YAML::Value << bcm_port.unit() << YAML::EndMap;
+    pc_pm_core << YAML::Key << YAML::BeginMap
+        << YAML::Key << "PC_PM_ID"
+        << YAML::Value << pc_pm_id
+        << YAML::Key << "CORE_INDEX"
+        << YAML::Value << bcm_port.unit()
+        << YAML::EndMap;
 
-    pc_pm_core << YAML::Value << YAML::BeginMap;
-    pc_pm_core << YAML::Key << "RX_LANE_MAP";
-    pc_pm_core << YAML::Value << serdes_lane_setting->rx_lane_map;
-
-    pc_pm_core << YAML::Key << "TX_LANE_MAP";
-    pc_pm_core << YAML::Value << serdes_lane_setting->tx_lane_map;
-
-    pc_pm_core << YAML::Key << "RX_POLARITY_FLIP";
-    pc_pm_core << YAML::Value << serdes_lane_setting->rx_polarity_flip;
-
-    pc_pm_core << YAML::Key << "TX_POLARITY_FLIP";
-    pc_pm_core << YAML::Value << serdes_lane_setting->tx_polarity_flip;
-    pc_pm_core << YAML::EndMap;
+    pc_pm_core << YAML::Value << YAML::BeginMap
+        << YAML::Key << "RX_LANE_MAP"
+        << YAML::Value << serdes_lane_setting.rx_lane_map
+        << YAML::Key << "TX_LANE_MAP"
+        << YAML::Value << serdes_lane_setting.tx_lane_map
+        << YAML::Key << "RX_POLARITY_FLIP"
+        << YAML::Value << serdes_lane_setting.rx_polarity_flip
+        << YAML::Key << "TX_POLARITY_FLIP"
+        << YAML::Value << serdes_lane_setting.tx_polarity_flip
+        << YAML::EndMap;
   }
   pc_pm_core << YAML::EndMap;  // PC_PM_CORE
   pc_pm_core << YAML::EndMap;  // 0
@@ -273,17 +268,18 @@ std::string SpeedBpsToBcmPortSpeedStr(const uint64 speed_bps) {
 
   for (const auto& bcm_port : target_bcm_chassis_map.bcm_ports()) {
     // Key is a map (PORT_ID: xx)
-    pc_port << YAML::Key << YAML::BeginMap << YAML::Key << "PORT_ID"
-            << YAML::Value << bcm_port.logical_port() << YAML::EndMap;
+    pc_port << YAML::Key << YAML::BeginMap
+        << YAML::Key << "PORT_ID"
+        << YAML::Value << bcm_port.logical_port()
+        << YAML::EndMap;
 
-    pc_port << YAML::Value << YAML::BeginMap;
-    pc_port << YAML::Key << "PC_PHYS_PORT_ID";
-    pc_port << YAML::Value << bcm_port.physical_port();
-    pc_port << YAML::Key << "ENABLE";
-    pc_port << YAML::Value << 1;
-    pc_port << YAML::Key << "OPMODE";
-    pc_port << YAML::Value << SpeedBpsToBcmPortSpeedStr(bcm_port.speed_bps());
-
+    pc_port << YAML::Value << YAML::BeginMap
+        << YAML::Key << "PC_PHYS_PORT_ID"
+        << YAML::Value << bcm_port.physical_port()
+        << YAML::Key << "ENABLE"
+        << YAML::Value << 1
+        << YAML::Key << "OPMODE"
+        << YAML::Value << SpeedBpsToBcmPortSpeedStr(bcm_port.speed_bps());
     pc_port << YAML::EndMap;  // PORT_ID
   }
   pc_port << YAML::EndMap;  // PC_PORT
