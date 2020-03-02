@@ -42,13 +42,14 @@ RUN ./p4studio_build.py -up stratum_profile -wk -j$JOBS -shc && \
 
 # Build Barefoot Tofino kernel module
 ARG KERNEL_HEADERS_TAR
-RUN mkdir -p /usr/src/kernel-headers && \
-    tar xf /stratum/$KERNEL_HEADERS_TAR -C /usr/src/kernel-headers --strip-components 1
+ENV KERNEL_HEADERS_PATH=/usr/src/kernel-headers
+RUN [ -n "$KERNEL_HEADERS_TAR" ] && mkdir -p /usr/src/kernel-headers && \
+    tar xf /stratum/$KERNEL_HEADERS_TAR -C $KERNEL_HEADERS_PATH --strip-components 1
 
 # Build kernel modules for BF kdrv
 ENV KDRV_DIR=/bf-sde/pkgsrc/bf-drivers/kdrv/bf_kdrv
-RUN mkdir -p $SDE_INSTALL/lib/modules
-RUN make -C /usr/src/kernel-headers M=$KDRV_DIR src=$KDRV_DIR modules && \
+RUN [ -d $KERNEL_HEADERS_PATH ] && mkdir -p $SDE_INSTALL/lib/modules && \
+    make -C $KERNEL_HEADERS_PATH M=$KDRV_DIR src=$KDRV_DIR modules && \
     mv $KDRV_DIR/bf_kdrv.ko $SDE_INSTALL/lib/modules/bf_kdrv.ko
 
 # Prepare all SDE libraries
