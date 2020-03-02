@@ -20,9 +20,9 @@ JOBS=${JOBS:-4}
 BUILD_ARGS="--build-arg JOBS=$JOBS"
 
 if [ "$#" -eq 1 ]; then
-    BUILD_ARGS = "$BUILD_ARGS --build-arg SDE_TAR=$1"
+    BUILD_ARGS="$BUILD_ARGS --build-arg SDE_TAR=$1"
 elif [ "$#" -eq 2 ]; then
-    BUILD_ARGS = "$BUILD_ARGS --build-arg SDE_TAR=$1 --build-arg KERNEL_HEADERS_TAR=$2"
+    BUILD_ARGS="$BUILD_ARGS --build-arg SDE_TAR=$1 --build-arg KERNEL_HEADERS_TAR=$2"
 else
     echo "Usage: $0 SDE_TAR [KERNEL_HEADERS_TAR]"
     exit 1
