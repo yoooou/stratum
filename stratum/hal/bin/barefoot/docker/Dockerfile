@@ -43,20 +43,13 @@ RUN ./p4studio_build.py -up stratum_profile -wk -j$JOBS -shc && \
 # Build Barefoot Tofino kernel module
 ARG KERNEL_HEADERS_TAR
 ENV KERNEL_HEADERS_PATH=/usr/src/kernel-headers
-RUN /bin/bash -c '[ -n "$KERNEL_HEADERS_TAR" ]' && mkdir -p /usr/src/kernel-headers && \
-    tar xf /stratum/$KERNEL_HEADERS_TAR -C $KERNEL_HEADERS_PATH --strip-components 1
-
-# Build kernel modules for BF kdrv
 ENV KDRV_DIR=/bf-sde/pkgsrc/bf-drivers/kdrv/bf_kdrv
-RUN /bin/bash -c '[ -d $KERNEL_HEADERS_PATH ]' && mkdir -p $SDE_INSTALL/lib/modules && \
-    make -C $KERNEL_HEADERS_PATH M=$KDRV_DIR src=$KDRV_DIR modules && \
-    mv $KDRV_DIR/bf_kdrv.ko $SDE_INSTALL/lib/modules/bf_kdrv.ko
+RUN /stratum/stratum/hal/bin/barefoot/docker/build-kdrv.sh
 
 # Prepare all SDE libraries
 ENV OUTPUT_BASE /output/usr/local
 RUN mkdir -p $OUTPUT_BASE/lib/modules && \
     cp -d $SDE_INSTALL/lib/*.so* $OUTPUT_BASE/lib/ && \
-    cp $SDE_INSTALL/lib/modules/*.ko $OUTPUT_BASE/lib/modules/ && \
     mkdir -p $OUTPUT_BASE/share/stratum && \
     cp -r $SDE_INSTALL/share/microp_fw $OUTPUT_BASE/share/ && \
     cp -r $SDE_INSTALL/share/bfsys/ $OUTPUT_BASE/share/ && \
